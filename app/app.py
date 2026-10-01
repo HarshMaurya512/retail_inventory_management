@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import joblib
 from pathlib import Path
 
 
@@ -50,7 +49,14 @@ MODEL_PATH = "models/demand_model.pkl"
 @st.cache_data
 def load_data():
     data = pd.read_csv(DATA_PATH)
-    data["Date"] = pd.to_datetime(data["Date"])
+
+    data["Date"] = pd.to_datetime(
+    data["Date"],
+    format="mixed",
+    errors="coerce"
+)
+    
+    data = data.dropna(subset=["Date"])
     return data
 
 
@@ -61,12 +67,7 @@ df = load_data()
 # LOAD ML MODEL
 # =========================================================
 
-try:
-    model = joblib.load(MODEL_PATH)
-    model_loaded = True
-except Exception:
-    model = None
-    model_loaded = False
+
 
 
 # =========================================================
@@ -763,51 +764,83 @@ elif page == "📊 Analytics":
 
 elif page == "🤖 Demand Prediction":
 
-    st.title(
-        "🤖 AI Demand Prediction"
+    st.title("🤖 AI Demand Prediction")
+
+    st.markdown(
+        "Predict future product demand using historical sales "
+        "and inventory information."
     )
 
-    if not model_loaded:
+    # ---------------------------------------------------------
+    # PRODUCT SELECTION
+    # ---------------------------------------------------------
 
-        st.error(
-            "Demand model could not be loaded."
+    product_list = sorted(
+        df["Product_Name"]
+        .dropna()
+        .unique()
+    )
+
+    if len(product_list) == 0:
+
+        st.warning(
+            "No products are available for demand prediction."
         )
 
     else:
 
-        st.success(
-            "Random Forest demand model loaded."
-        )
-
         product = st.selectbox(
             "Select Product",
-            sorted(
-                df["Product_Name"]
-                .dropna()
-                .unique()
-            )
+            product_list
         )
 
+        # ---------------------------------------------------------
+        # GET PRODUCT HISTORY
+        # ---------------------------------------------------------
+
         history = df[
-            df["Product_Name"]
-            == product
+            df["Product_Name"] == product
         ].copy()
 
         history = history.sort_values(
             "Date"
         )
 
-        history[
-            "Previous_Day_Sales"
-        ] = history[
-            "Units_Sold"
-        ].shift(1)
+        # Make sure Units_Sold is numeric
+        history["Units_Sold"] = pd.to_numeric(
+            history["Units_Sold"],
+            errors="coerce"
+        )
 
-        history[
-            "Rolling_7_Day_Sales"
-        ] = history[
-            "Units_Sold"
-        ].shift(1).rolling(7).mean()
+        history = history.dropna(
+            subset=["Units_Sold"]
+        )
+
+        # ---------------------------------------------------------
+        # CREATE DEMAND FEATURES
+        # ---------------------------------------------------------
+
+        history["Previous_Day_Sales"] = (
+            history["Units_Sold"].shift(1)
+        )
+
+        history["Rolling_7_Day_Sales"] = (
+            history["Units_Sold"]
+            .shift(1)
+            .rolling(7)
+            .mean()
+        )
+
+        history["Rolling_30_Day_Sales"] = (
+            history["Units_Sold"]
+            .shift(1)
+            .rolling(30)
+            .mean()
+        )
+
+        # ---------------------------------------------------------
+        # CHECK DATA
+        # ---------------------------------------------------------
 
         valid = history.dropna(
             subset=[
@@ -819,75 +852,104 @@ elif page == "🤖 Demand Prediction":
         if len(valid) == 0:
 
             st.warning(
-                "Not enough historical data "
+                "Not enough historical sales data "
                 "for this product."
             )
 
         else:
 
+            # -----------------------------------------------------
+            # LATEST PRODUCT DATA
+            # -----------------------------------------------------
+
             latest = valid.iloc[-1]
 
-            input_data = pd.DataFrame([{
-
-                "Unit_Price":
-                    latest["Unit_Price"],
-
-                "Discount_Percent":
-                    latest["Discount_Percent"],
-
-                "Stock_Level":
-                    latest["Stock_Level"],
-
-                "Reorder_Level":
-                    latest["Reorder_Level"],
-
-                "Lead_Time_Days":
-                    latest["Lead_Time_Days"],
-
-                "Month":
-                    latest["Date"].month,
-
-                "DayOfWeek":
-                    latest["Date"].dayofweek,
-
-                "Previous_Day_Sales":
-                    latest["Previous_Day_Sales"],
-
-                "Rolling_7_Day_Sales":
-                    latest["Rolling_7_Day_Sales"]
-
-            }])
-
-            prediction = model.predict(
-                input_data
-            )[0]
-
-            prediction = max(
-                0,
-                round(prediction)
+            previous_day_sales = float(
+                latest["Previous_Day_Sales"]
             )
 
+            rolling_7_day_sales = float(
+                latest["Rolling_7_Day_Sales"]
+            )
+
+            # If 30-day average is unavailable,
+            # use 7-day average
+            if pd.isna(
+                latest["Rolling_30_Day_Sales"]
+            ):
+
+                rolling_30_day_sales = (
+                    rolling_7_day_sales
+                )
+
+            else:
+
+                rolling_30_day_sales = float(
+                    latest["Rolling_30_Day_Sales"]
+                )
+
+            # -----------------------------------------------------
+            # DEMAND ESTIMATION
+            # -----------------------------------------------------
+
+            # Weighted demand estimate
+            #
+            # 50% recent 7-day demand
+            # 30% 30-day demand
+            # 20% previous day demand
+
+            predicted_demand = (
+                0.50 * rolling_7_day_sales
+                + 0.30 * rolling_30_day_sales
+                + 0.20 * previous_day_sales
+            )
+
+            predicted_demand = max(
+                0,
+                round(predicted_demand)
+            )
+
+            # -----------------------------------------------------
+            # CURRENT INVENTORY
+            # -----------------------------------------------------
+
             current_stock = int(
-                latest["Stock_Level"]
+                pd.to_numeric(
+                    latest["Stock_Level"],
+                    errors="coerce"
+                )
             )
 
             reorder_level = int(
-                latest["Reorder_Level"]
+                pd.to_numeric(
+                    latest["Reorder_Level"],
+                    errors="coerce"
+                )
             )
+
+            # -----------------------------------------------------
+            # SAFETY STOCK
+            # -----------------------------------------------------
 
             safety_stock = max(
                 1,
                 round(
-                    latest[
-                        "Rolling_7_Day_Sales"
-                    ] * 0.20
+                    rolling_7_day_sales * 0.20
                 )
             )
 
+            # -----------------------------------------------------
+            # REQUIRED STOCK
+            # -----------------------------------------------------
+
             required_stock = (
-                prediction
+                predicted_demand
                 + safety_stock
             )
+
+            # -----------------------------------------------------
+            # RECOMMENDED ORDER
+            # -----------------------------------------------------
 
             recommended_order = max(
                 required_stock
@@ -895,36 +957,50 @@ elif page == "🤖 Demand Prediction":
                 0
             )
 
+            # -----------------------------------------------------
+            # DISPLAY RESULT
+            # -----------------------------------------------------
+
             st.markdown(
-                "### Prediction Result"
+                "### 📊 Prediction Result"
             )
 
             c1, c2, c3, c4 = st.columns(4)
 
             c1.metric(
                 "Predicted Demand",
-                f"{prediction} units"
+                f"{predicted_demand} units"
             )
 
             c2.metric(
                 "Current Stock",
-                f"{current_stock}"
+                f"{current_stock} units"
             )
 
             c3.metric(
                 "Safety Stock",
-                f"{safety_stock}"
+                f"{safety_stock} units"
             )
 
             c4.metric(
                 "Recommended Order",
-                f"{recommended_order}"
+                f"{recommended_order} units"
             )
+
+            # -----------------------------------------------------
+            # INVENTORY STATUS
+            # -----------------------------------------------------
 
             if current_stock <= reorder_level:
 
                 st.error(
                     "🚨 REORDER REQUIRED"
+                )
+
+                st.write(
+                    f"Current stock ({current_stock}) "
+                    f"is at or below the reorder level "
+                    f"({reorder_level})."
                 )
 
             elif current_stock < required_stock:
@@ -933,10 +1009,101 @@ elif page == "🤖 Demand Prediction":
                     "⚠️ STOCK LEVEL LOW"
                 )
 
+                st.write(
+                    f"Recommended additional stock: "
+                    f"{recommended_order} units."
+                )
+
             else:
 
                 st.success(
                     "✅ STOCK SUFFICIENT"
+                )
+
+                st.write(
+                    "Current inventory is sufficient "
+                    "for the estimated demand."
+                )
+
+            # -----------------------------------------------------
+            # DEMAND INFORMATION
+            # -----------------------------------------------------
+
+            st.markdown(
+                "### 📈 Demand Analysis"
+            )
+
+            d1, d2, d3 = st.columns(3)
+
+            d1.metric(
+                "Previous Day Sales",
+                f"{round(previous_day_sales)} units"
+            )
+
+            d2.metric(
+                "7-Day Average",
+                f"{round(rolling_7_day_sales)} units"
+            )
+
+            d3.metric(
+                "30-Day Average",
+                f"{round(rolling_30_day_sales)} units"
+            )
+
+            # -----------------------------------------------------
+            # SALES TREND CHART
+            # -----------------------------------------------------
+
+            chart_data = history[
+                [
+                    "Date",
+                    "Units_Sold"
+                ]
+            ].tail(30)
+
+            if not chart_data.empty:
+
+                fig = px.line(
+                    chart_data,
+                    x="Date",
+                    y="Units_Sold",
+                    markers=True,
+                    title=f"Sales Trend - {product}"
+                )
+
+                fig.update_layout(
+                    xaxis_title="Date",
+                    yaxis_title="Units Sold"
+                )
+
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+            # -----------------------------------------------------
+            # RECOMMENDATION
+            # -----------------------------------------------------
+
+            st.markdown(
+                "### 💡 Inventory Recommendation"
+            )
+
+            if recommended_order > 0:
+
+                st.info(
+                    f"For **{product}**, the estimated demand "
+                    f"is **{predicted_demand} units**. "
+                    f"Considering safety stock, approximately "
+                    f"**{recommended_order} additional units** "
+                    f"should be considered for replenishment."
+                )
+
+            else:
+
+                st.success(
+                    f"No additional order is currently "
+                    f"required for **{product}**."
                 )
 
 
