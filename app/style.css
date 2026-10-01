@@ -1,0 +1,166 @@
+/* ---------- GLOBAL ---------- */
+
+.stApp {
+    background: #0b0f19;
+    color: #f8fafc;
+}
+
+.block-container {
+    padding-top: 2rem;
+    padding-left: 3rem;
+    padding-right: 3rem;
+    max-width: 1500px;
+}
+
+
+/* ---------- SIDEBAR ---------- */
+
+[data-testid="stSidebar"] {
+    background: #111827;
+    border-right: 1px solid #1f2937;
+}
+
+[data-testid="stSidebar"] h1 {
+    color: #ffffff;
+    font-size: 22px;
+}
+
+[data-testid="stSidebar"] p {
+    color: #9ca3af;
+}
+
+
+/* ---------- HEADINGS ---------- */
+
+h1 {
+    font-size: 36px !important;
+    font-weight: 700 !important;
+}
+
+h2 {
+    font-size: 25px !important;
+}
+
+h3 {
+    font-size: 19px !important;
+}
+
+
+/* ---------- KPI CARDS ---------- */
+
+[data-testid="stMetric"] {
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 14px;
+    padding: 20px;
+}
+
+[data-testid="stMetricLabel"] {
+    color: #9ca3af;
+}
+
+[data-testid="stMetricValue"] {
+    color: #ffffff;
+    font-size: 28px;
+}
+
+
+/* ---------- BUTTONS ---------- */
+
+.stButton > button {
+    width: 100%;
+    border-radius: 9px;
+    border: 1px solid #374151;
+    background: #2563eb;
+    color: white;
+    font-weight: 600;
+    padding: 10px 16px;
+}
+
+.stButton > button:hover {
+    background: #1d4ed8;
+    border-color: #3b82f6;
+}
+
+
+/* ---------- DATAFRAME ---------- */
+
+[data-testid="stDataFrame"] {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+
+/* ---------- INPUTS ---------- */
+
+.stTextInput input,
+.stNumberInput input {
+    background: #111827;
+    color: white;
+    border-radius: 8px;
+}
+
+.stSelectbox div[data-baseweb="select"] {
+    background: #111827;
+}
+
+
+/* ---------- ALERT BOXES ---------- */
+
+.stAlert {
+    border-radius: 10px;
+}
+
+
+/* ---------- DIVIDER ---------- */
+
+hr {
+    border-color: #1f2937;
+}
+
+
+/* ---------- CUSTOM CARD ---------- */
+
+.dashboard-card {
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.dashboard-card h3 {
+    margin-top: 0;
+    color: #ffffff;
+}
+
+.dashboard-card p {
+    color: #9ca3af;
+}
+
+
+/* ---------- BADGES ---------- */
+
+.badge-success {
+    background: #064e3b;
+    color: #6ee7b7;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.badge-warning {
+    background: #78350f;
+    color: #fcd34d;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.badge-danger {
+    background: #7f1d1d;
+    color: #fca5a5;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+}

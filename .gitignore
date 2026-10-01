@@ -1,0 +1,8 @@
+.venv/
+.venv-1/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.vscode/
+.env
+models/demand_model.pkl
